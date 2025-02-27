@@ -12,24 +12,16 @@ const GIF_KEY = 'gifs';
 const loadFromLocalStorage = () => {
   const gifsFromLocalStorage = localStorage.getItem(GIF_KEY) ?? '{}'; //Record<string, gifs[]>
   const gifs = JSON.parse(gifsFromLocalStorage);
-  console.log(gifs);
   return gifs;
 };
-
-// {
-//   'goku': [gif1,gif2,gif3],
-//   'saitama': [gif1,gif2,gif3],
-//   'dragon ball': [gif1,gif2,gif3],
-// }
-
-// Record<string, Gif[]>
 
 @Injectable({ providedIn: 'root' })
 export class GifService {
   private http = inject(HttpClient);
 
   trendingGifs = signal<Gif[]>([]);
-  trendingGifsLoading = signal(true);
+  trendingGifsLoading = signal(false);
+  private tredimgPage = signal(0);
 
   tredingGifGroup = computed<Gif[][]>(() => {
     const groups = [];
@@ -52,18 +44,21 @@ export class GifService {
   });
 
   loadTrendingGifs() {
+    if (this.trendingGifsLoading()) return;
+    this.trendingGifsLoading.set(true);
     this.http
       .get<GiphyResponse>(`${environment.giphyUrl}/gifs/trending`, {
         params: {
           api_key: environment.giphyApiKey,
           limit: 20,
+          offset: this.tredimgPage() * 20,
         },
       })
       .subscribe((resp) => {
         const gifs = GifMapper.mapGiphyItemsToGifArray(resp.data);
-        this.trendingGifs.set(gifs);
+        this.trendingGifs.update( currentGifs => [...currentGifs, ...gifs]);
+        this.tredimgPage.update(page => page + 1);
         this.trendingGifsLoading.set(false);
-        console.log({ gifs });
       });
   }
 
@@ -88,13 +83,6 @@ export class GifService {
           }));
         })
       );
-
-    // .subscribe((resp) => {
-    //   const gifs = GifMapper.mapGiphyItemsToGifArray(resp.data);
-
-    //   console.log({ search: gifs });
-    //   return gifs;
-    // });
   }
 
   getHistoryGifs(query: string): Gif[] {
